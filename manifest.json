@@ -1,0 +1,25 @@
+{
+  "name": "GCSP (Grade Control SumProduct) Calculation App",
+  "short_name": "GCSP Calc",
+  "description": "Quick Calculation, Better Grade Control - Kalkulator Estimasi Kadar Nikel (Ni) per Dome Stockpile Tambang",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0f17",
+  "theme_color": "#0284c7",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

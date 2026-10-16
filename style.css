@@ -1,0 +1,208 @@
+/* Custom styles for Kalkulator Estimasi Kadar Nikel (Ni) per Dome */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --primary-glow: rgba(245, 158, 11, 0.15);
+  --emerald-glow: rgba(16, 185, 129, 0.2);
+  --rose-glow: rgba(244, 63, 94, 0.2);
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: #0b0f17;
+  color: #f1f5f9;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(30, 41, 59, 0.5) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(245, 158, 11, 0.08) 0px, transparent 40%),
+    radial-gradient(at 50% 100%, rgba(15, 23, 42, 0.8) 0px, transparent 50%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+.font-heading {
+  font-family: 'Outfit', sans-serif;
+}
+
+.font-mono-calc {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+
+.glass-panel-amber {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.glass-panel-hover {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 15px 35px -10px rgba(245, 158, 11, 0.15);
+}
+
+/* Input Styling */
+.mining-input {
+  background: rgba(11, 15, 23, 0.85);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  color: #f8fafc;
+  transition: all 0.2s ease;
+}
+
+.mining-input:focus {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: #f59e0b;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+
+/* Mobile Stepper Touch Targets */
+.touch-stepper-btn {
+  min-width: 38px;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* Status Badge Pulse */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.02); }
+}
+
+.status-badge-pulse {
+  animation: pulse-subtle 3s infinite ease-in-out;
+}
+
+/* Row animations */
+.table-row-animate {
+  animation: fadeInRow 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeInRow {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Accordion Transition */
+.accordion-content {
+  transition: max-height 0.35s ease-out, opacity 0.25s ease-out;
+  overflow: hidden;
+}
+
+.accordion-content.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  border-top-width: 0 !important;
+}
+
+/* Toast Notifications */
+#toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  max-width: calc(100vw - 40px);
+}
+
+.toast {
+  pointer-events: auto;
+  transform: translateY(20px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* ========================================================= */
+/* PRINT STYLING - RESMI & PAS 1 HALAMAN A4                  */
+/* ========================================================= */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 15mm 10mm 15mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
+    font-family: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+    font-size: 9.5pt !important;
+    line-height: 1.35 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Sembunyikan seluruh elemen antarmuka web */
+  .no-print, header, nav, button, .web-summary, .classification-guide, main, #toast-container {
+    display: none !important;
+  }
+
+  /* Tampilkan lembar resmi #printable-report */
+  #printable-report {
+    display: block !important;
+    width: 100% !important;
+    page-break-inside: avoid !important;
+    font-family: Arial, sans-serif !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #printable-report table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    margin: 8px 0 10px 0 !important;
+  }
+
+  #printable-report th, 
+  #printable-report td {
+    border: 1px solid #1e293b !important;
+    color: #000000 !important;
+    padding: 4px 6px !important;
+    font-size: 8.5pt !important;
+  }
+
+  #printable-report th {
+    background-color: #f1f5f9 !important;
+    font-weight: bold !important;
+  }
+
+  .page-avoid-break {
+    page-break-inside: avoid !important;
+  }
+}
