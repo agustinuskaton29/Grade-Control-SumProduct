@@ -25,6 +25,13 @@ const DEFAULT_CONFIG = {
 // Default Sample Data: Array kosong (Empty State)
 const DEFAULT_SAMPLES = [];
 
+// Sample Data untuk Tombol 'Muat Data Contoh'
+const EXAMPLE_SAMPLES = [
+  { id: '1', name: 'Pit 1 - Blok A (HGSO)', buckets: 4, gradeNi: 2.10, rawGrade: '2.10' },
+  { id: '2', name: 'Pit 1 - Blok B (MGSO)', buckets: 2, gradeNi: 1.85, rawGrade: '1.85' },
+  { id: '3', name: 'Pit 2 - Blok C (LGSO)', buckets: 2, gradeNi: 1.55, rawGrade: '1.55' }
+];
+
 /**
  * Matriks Klasifikasi Saprolite (Acuan Kadar Ni & Fe < 30%):
  * 1. HGSO (High Grade Saprolite Ore): Ni ≥ 2.0% (Fe < 30%) | Merah (bg-red-600 text-white)
@@ -94,6 +101,47 @@ function classifyOre(gradeNi) {
     };
   }
 }
+
+/**
+ * Global Grade Input Handler - Mendukung format desimal fleksibel (titik & koma)
+ * Mencegah karakter non-numerik, otomatis konversi koma ke titik,
+ * dan memastikan hanya ada 1 tanda desimal.
+ */
+function handleGradeInput(e, sampleId) {
+  const id = sampleId || (e && e.target ? e.target.dataset.id : null);
+  let val = e.target.value;
+
+  // 1. Jika user tidak sengaja mengetik koma, otomatis ubah menjadi titik
+  val = val.replace(/,/g, '.');
+
+  // 2. Cegah input selain angka dan titik
+  val = val.replace(/[^0-9.]/g, '');
+
+  // 3. Pastikan hanya ada 1 tanda titik desimal
+  const parts = val.split('.');
+  if (parts.length > 2) {
+    val = parts[0] + '.' + parts.slice(1).join('');
+  }
+
+  // 4. Update kembali nilai di tampilan input secara langsung
+  e.target.value = val;
+
+  // 5. Parse ke float untuk perhitungan tonase x Ni dan komposit
+  const numericGrade = parseFloat(val);
+  
+  // Kirim ke state aplikasi (jika kosong atau tidak valid, simpan 0)
+  updateSampleNi(id, isNaN(numericGrade) ? 0 : numericGrade, val, e.target);
+}
+
+function updateSampleNi(sampleId, numericGrade, rawVal, sourceInput) {
+  if (window.nickelApp) {
+    window.nickelApp.updateSampleGrade(sampleId, numericGrade, rawVal, sourceInput);
+  }
+}
+
+// Make accessible to global window scope for inline oninput attributes
+window.handleGradeInput = handleGradeInput;
+window.updateSampleNi = updateSampleNi;
 
 class NickelDomeCalculator {
   constructor() {
@@ -263,8 +311,10 @@ class NickelDomeCalculator {
   }
 
   calculateSample(sample, tonnagePerBucket) {
-    const buckets = parseFloat(sample.buckets) || 0;
-    const gradeNi = parseFloat(sample.gradeNi) || 0;
+    const rawBkt = (sample.buckets !== undefined && sample.buckets !== '') ? sample.buckets : sample.bucket;
+    const rawGrd = (sample.gradeNi !== undefined && sample.gradeNi !== '') ? sample.gradeNi : (sample.grade !== undefined && sample.grade !== '' ? sample.grade : sample.rawGrade);
+    const buckets = parseFloat(rawBkt) || 0;
+    const gradeNi = parseFloat(rawGrd) || 0;
     const tonnage = buckets * tonnagePerBucket;
     const tonNi = tonnage * gradeNi;
     const classification = classifyOre(gradeNi);
@@ -334,7 +384,6 @@ class NickelDomeCalculator {
 
   render() {
     const summary = this.calculateSummary();
-    const dec = this.config.decimalPlaces;
 
     // 1. Update Parameter Card Display
     const tonPerBkt = summary.tonnagePerBucket.toFixed(3);
@@ -344,7 +393,18 @@ class NickelDomeCalculator {
         `(${this.config.bucketCapacity} m³ × ${this.config.fillFactor} × ${this.config.oreDensity} t/m³) = ${tonPerBkt} ton/bucket`;
     }
 
-    // 2. Update Summary Cards (Positioned in Bottom Block)
+    // 2. Render Table (Desktop) & Cards (Mobile)
+    const searchTerm = this.sampleSearch ? this.sampleSearch.value.trim().toLowerCase() : '';
+    this.renderBothViews(searchTerm, summary);
+
+    // 3. Update Summary Displays & Footer Totals
+    this.updateSummaryDisplays(summary);
+  }
+
+  updateSummaryDisplays(summary) {
+    const dec = this.config.decimalPlaces;
+
+    // Summary Cards (Positioned in Bottom Block)
     if (this.cardTotalBuckets) this.cardTotalBuckets.textContent = summary.totalBuckets.toLocaleString('id-ID');
     if (this.cardTotalTonnage) this.cardTotalTonnage.textContent = summary.totalTonnage.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + ' t';
     
@@ -430,11 +490,7 @@ class NickelDomeCalculator {
       }
     }
 
-    // 3. Render Table (Desktop) & Cards (Mobile)
-    const searchTerm = this.sampleSearch ? this.sampleSearch.value.trim().toLowerCase() : '';
-    this.renderBothViews(searchTerm, summary);
-
-    // 4. Update Footer Totals (Desktop Table)
+    // Update Footer Totals (Desktop Table)
     if (this.tableTotalBuckets) this.tableTotalBuckets.textContent = summary.totalBuckets.toLocaleString('id-ID');
     if (this.tableTotalTonnage) this.tableTotalTonnage.textContent = summary.totalTonnage.toFixed(3) + ' t';
     if (this.tableTotalTonGrade) this.tableTotalTonGrade.textContent = summary.totalTonNi.toFixed(4);
@@ -457,13 +513,100 @@ class NickelDomeCalculator {
       }
     }
 
-    // 5. Highlight active classification matrix card
+    // Highlight active classification matrix card
     this.highlightActiveMatrixCard(summary.compositeClassification.code);
 
-    // 6. Update Chart and Print Meta
+    // Update Chart and Print Meta
     this.updateChart(summary);
     this.updatePrintMeta();
     this.saveToLocalStorage();
+  }
+
+  updateSampleGrade(sampleId, numericGrade, rawVal, sourceInput) {
+    const item = this.samples.find(s => s.id === sampleId);
+    if (!item) return;
+
+    item.gradeNi = isNaN(numericGrade) || numericGrade < 0 ? 0 : numericGrade;
+    item.rawGrade = rawVal !== undefined ? rawVal : (item.gradeNi > 0 ? item.gradeNi.toString() : '');
+
+    this.updateLiveCalculations(sampleId, sourceInput, item.rawGrade);
+  }
+
+  updateLiveCalculations(sampleId, sourceInput, rawVal) {
+    const summary = this.calculateSummary();
+    const item = this.samples.find(s => s.id === sampleId);
+    if (!item) return;
+
+    const calc = this.calculateSample(item, summary.tonnagePerBucket);
+    const isAboveCog = calc.gradeNi >= this.config.cog;
+    const ore = calc.classification;
+    const tonnagePct = summary.totalTonnage > 0 ? (calc.tonnage / summary.totalTonnage) * 100 : 0;
+
+    // 1. Update Desktop Row in-place
+    const desktopRow = this.tableBody ? this.tableBody.querySelector(`tr[data-sample-id="${sampleId}"]`) : null;
+    if (desktopRow) {
+      const desktopInput = desktopRow.querySelector('.sample-grade-input');
+      if (desktopInput && desktopInput !== sourceInput && rawVal !== undefined) {
+        desktopInput.value = rawVal;
+      }
+      if (desktopInput) {
+        if (isAboveCog) {
+          desktopInput.classList.add('text-emerald-400', 'border-emerald-900/60');
+          desktopInput.classList.remove('text-rose-400', 'border-rose-900/60');
+        } else {
+          desktopInput.classList.add('text-rose-400', 'border-rose-900/60');
+          desktopInput.classList.remove('text-emerald-400', 'border-emerald-900/60');
+        }
+      }
+      const tonCell = desktopRow.querySelector('.cell-tonnage');
+      if (tonCell) tonCell.textContent = `${calc.tonnage.toFixed(3)} ton`;
+      const barTon = desktopRow.querySelector('.bar-tonnage-pct');
+      if (barTon) {
+        barTon.style.width = `${tonnagePct}%`;
+        if (barTon.parentElement) barTon.parentElement.title = `Kontribusi: ${tonnagePct.toFixed(1)}%`;
+      }
+      const tonNiCell = desktopRow.querySelector('.cell-ton-ni');
+      if (tonNiCell) tonNiCell.textContent = calc.tonNi.toFixed(4);
+      const oreBadgeCell = desktopRow.querySelector('.cell-ore-badge');
+      if (oreBadgeCell) {
+        oreBadgeCell.innerHTML = `
+          <span class="inline-flex items-center justify-center px-2.5 py-1 rounded text-xs font-black tracking-wide ${ore.badgeClass}" title="${ore.name}: ${ore.description}">
+            ${ore.code}
+          </span>
+        `;
+      }
+    }
+
+    // 2. Update Mobile Card in-place
+    const mobileCard = this.mobileCardsContainer ? this.mobileCardsContainer.querySelector(`div[data-sample-id="${sampleId}"]`) : null;
+    if (mobileCard) {
+      const mobileInput = mobileCard.querySelector('.sample-grade-input');
+      if (mobileInput && mobileInput !== sourceInput && rawVal !== undefined) {
+        mobileInput.value = rawVal;
+      }
+      if (mobileInput) {
+        if (isAboveCog) {
+          mobileInput.classList.add('text-emerald-400', 'border-emerald-900/60');
+          mobileInput.classList.remove('text-rose-400', 'border-rose-900/60');
+        } else {
+          mobileInput.classList.add('text-rose-400', 'border-rose-900/60');
+          mobileInput.classList.remove('text-emerald-400', 'border-emerald-900/60');
+        }
+      }
+      const cardTon = mobileCard.querySelector('.card-tonnage');
+      if (cardTon) cardTon.textContent = `${calc.tonnage.toFixed(3)} t`;
+      const cardTonNi = mobileCard.querySelector('.card-ton-ni');
+      if (cardTonNi) cardTonNi.textContent = calc.tonNi.toFixed(3);
+      const cardOreBadge = mobileCard.querySelector('.card-ore-badge');
+      if (cardOreBadge) {
+        cardOreBadge.className = `card-ore-badge px-2.5 py-0.5 rounded text-[11px] font-black tracking-wide ${ore.badgeClass}`;
+        cardOreBadge.title = `${ore.name}: ${ore.description}`;
+        cardOreBadge.textContent = ore.code;
+      }
+    }
+
+    // 3. Update summary metrics, footers, chart, print, storage
+    this.updateSummaryDisplays(summary);
   }
 
   highlightActiveMatrixCard(activeCode) {
@@ -519,7 +662,10 @@ class NickelDomeCalculator {
 
     filtered.forEach((sample, idx) => {
       const calc = this.calculateSample(sample, tonnagePerBucket);
-      const isAboveCog = calc.gradeNi >= this.config.cog;
+      const rawBkt = (sample.buckets !== undefined && sample.buckets !== null && sample.buckets !== '') ? sample.buckets : (sample.bucket !== undefined && sample.bucket !== null && sample.bucket !== '' ? sample.bucket : '');
+      const rawGrd = sample.rawGrade !== undefined ? sample.rawGrade : (sample.gradeNi !== undefined && sample.gradeNi !== '' ? sample.gradeNi : (sample.grade !== undefined && sample.grade !== '' ? sample.grade : ''));
+      const hasGrade = rawGrd !== '' && rawGrd !== null && !isNaN(parseFloat(rawGrd));
+      const gradeClass = !hasGrade ? 'text-slate-300 border-slate-700/80 focus:border-amber-500' : (calc.gradeNi >= this.config.cog ? 'text-emerald-400 border-emerald-900/60' : 'text-rose-400 border-rose-900/60');
       const tonnagePct = summary.totalTonnage > 0 ? (calc.tonnage / summary.totalTonnage) * 100 : 0;
       const ore = calc.classification;
 
@@ -536,7 +682,7 @@ class NickelDomeCalculator {
         <!-- Nama Sampel (Bersih tanpa ID acak) -->
         <td class="px-3 py-3">
           <input type="text" 
-                 value="${this.escapeHtml(sample.name)}" 
+                 value="${this.escapeHtml(sample.name || '')}" 
                  placeholder="Contoh: Pit A - Sampel 1"
                  class="sample-name-input mining-input w-full px-2.5 py-1.5 text-xs font-semibold rounded focus:ring-1 focus:ring-amber-500"
                  data-id="${sample.id}">
@@ -549,7 +695,8 @@ class NickelDomeCalculator {
             <input type="number" 
                    min="0" 
                    step="1"
-                   value="${sample.buckets}" 
+                   value="${rawBkt}" 
+                   placeholder="0"
                    class="sample-buckets-input mining-input w-14 text-center py-1.5 text-xs font-mono-calc font-semibold rounded"
                    data-id="${sample.id}">
             <button class="btn-step-bucket-plus w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center transition-colors" data-id="${sample.id}">+</button>
@@ -559,11 +706,11 @@ class NickelDomeCalculator {
         <!-- Estimasi Tonase (ton) -->
         <td class="px-3 py-3 text-right w-36">
           <div class="flex flex-col items-end">
-            <span class="font-mono-calc font-bold text-xs text-amber-300">
+            <span class="font-mono-calc font-bold text-xs text-amber-300 cell-tonnage">
               ${calc.tonnage.toFixed(3)} ton
             </span>
             <div class="w-16 bg-slate-800 h-1 rounded-full mt-1 overflow-hidden" title="Kontribusi: ${tonnagePct.toFixed(1)}%">
-              <div class="bg-amber-500/70 h-full rounded-full" style="width: ${tonnagePct}%;"></div>
+              <div class="bg-amber-500/70 h-full rounded-full bar-tonnage-pct" style="width: ${tonnagePct}%;"></div>
             </div>
           </div>
         </td>
@@ -571,24 +718,24 @@ class NickelDomeCalculator {
         <!-- Kadar Ni (%) -->
         <td class="px-3 py-3 text-right w-32">
           <div class="flex items-center justify-end space-x-1">
-            <input type="number" 
-                   min="0" 
-                   max="100" 
-                   step="0.01"
-                   value="${sample.gradeNi}" 
-                   class="sample-grade-input mining-input w-20 text-right py-1.5 px-2 text-xs font-mono-calc font-bold rounded ${isAboveCog ? 'text-emerald-400 border-emerald-900/60' : 'text-rose-400 border-rose-900/60'}"
-                   data-id="${sample.id}">
+            <input type="text" 
+                   inputmode="decimal" 
+                   placeholder="0.0" 
+                   value="${rawGrd}" 
+                   class="sample-grade-input input-kadar mining-input w-20 text-right py-1.5 px-2 text-xs font-mono-calc font-bold rounded ${gradeClass}" 
+                   data-id="${sample.id}"
+                   oninput="handleGradeInput(event, '${sample.id}')">
             <span class="text-xs font-bold text-slate-400">%</span>
           </div>
         </td>
 
         <!-- Tonase × Ni -->
-        <td class="px-3 py-3 text-right font-mono-calc font-semibold text-xs text-slate-300 w-32">
+        <td class="px-3 py-3 text-right font-mono-calc font-semibold text-xs text-slate-300 w-32 cell-ton-ni">
           ${calc.tonNi.toFixed(4)}
         </td>
 
         <!-- Klasifikasi Ore Badge (Hanya Singkatan) -->
-        <td class="px-3 py-3 text-center w-36">
+        <td class="px-3 py-3 text-center w-36 cell-ore-badge">
           <span class="inline-flex items-center justify-center px-2.5 py-1 rounded text-xs font-black tracking-wide ${ore.badgeClass}" title="${ore.name}: ${ore.description}">
             ${ore.code}
           </span>
@@ -639,7 +786,10 @@ class NickelDomeCalculator {
 
     filtered.forEach((sample, idx) => {
       const calc = this.calculateSample(sample, tonnagePerBucket);
-      const isAboveCog = calc.gradeNi >= this.config.cog;
+      const rawBkt = (sample.buckets !== undefined && sample.buckets !== null && sample.buckets !== '') ? sample.buckets : (sample.bucket !== undefined && sample.bucket !== null && sample.bucket !== '' ? sample.bucket : '');
+      const rawGrd = sample.rawGrade !== undefined ? sample.rawGrade : (sample.gradeNi !== undefined && sample.gradeNi !== '' ? sample.gradeNi : (sample.grade !== undefined && sample.grade !== '' ? sample.grade : ''));
+      const hasGrade = rawGrd !== '' && rawGrd !== null && !isNaN(parseFloat(rawGrd));
+      const gradeClass = !hasGrade ? 'text-slate-300 border-slate-700/80 focus:border-amber-500' : (calc.gradeNi >= this.config.cog ? 'text-emerald-400 border-emerald-900/60' : 'text-rose-400 border-rose-900/60');
       const ore = calc.classification;
 
       const card = document.createElement('div');
@@ -653,7 +803,7 @@ class NickelDomeCalculator {
             ${idx + 1}
           </span>
           <input type="text" 
-                 value="${this.escapeHtml(sample.name)}" 
+                 value="${this.escapeHtml(sample.name || '')}" 
                  placeholder="Nama Sampel"
                  class="sample-name-input mining-input w-full px-2.5 py-1.5 text-xs font-semibold rounded"
                  data-id="${sample.id}">
@@ -685,7 +835,8 @@ class NickelDomeCalculator {
               <input type="number" 
                      min="0" 
                      step="1"
-                     value="${sample.buckets}" 
+                     value="${rawBkt}" 
+                     placeholder="0"
                      class="sample-buckets-input mining-input w-12 text-center py-1.5 text-xs font-mono-calc font-bold rounded"
                      data-id="${sample.id}">
               <button class="btn-step-bucket-plus touch-stepper-btn rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-base active:scale-95 border border-slate-700" 
@@ -697,13 +848,13 @@ class NickelDomeCalculator {
           <div class="bg-slate-900/70 p-2 rounded-lg border border-slate-800/80 flex flex-col justify-between">
             <span class="text-[10px] text-slate-400 font-medium mb-1">Kadar Ni (%):</span>
             <div class="relative">
-              <input type="number" 
-                     min="0" 
-                     max="100" 
-                     step="0.01"
-                     value="${sample.gradeNi}" 
-                     class="sample-grade-input mining-input w-full py-1.5 pl-2 pr-6 text-xs font-mono-calc font-bold rounded ${isAboveCog ? 'text-emerald-400 border-emerald-900/60' : 'text-rose-400 border-rose-900/60'}"
-                     data-id="${sample.id}">
+              <input type="text" 
+                     inputmode="decimal" 
+                     placeholder="0.0" 
+                     value="${rawGrd}" 
+                     class="sample-grade-input input-kadar mining-input w-full py-1.5 pl-2 pr-6 text-xs font-mono-calc font-bold rounded ${gradeClass}" 
+                     data-id="${sample.id}"
+                     oninput="handleGradeInput(event, '${sample.id}')">
               <span class="absolute right-2 top-1.5 text-xs font-bold text-slate-400">%</span>
             </div>
           </div>
@@ -714,13 +865,13 @@ class NickelDomeCalculator {
         <div class="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
           <div>
             <span class="text-slate-400 text-[10px]">Tonase:</span>
-            <span class="font-mono-calc font-bold text-amber-300 ml-1">${calc.tonnage.toFixed(3)} t</span>
+            <span class="font-mono-calc font-bold text-amber-300 ml-1 card-tonnage">${calc.tonnage.toFixed(3)} t</span>
           </div>
           <div>
             <span class="text-slate-400 text-[10px]">Ton × Ni:</span>
-            <span class="font-mono-calc text-slate-300 ml-1">${calc.tonNi.toFixed(3)}</span>
+            <span class="font-mono-calc text-slate-300 ml-1 card-ton-ni">${calc.tonNi.toFixed(3)}</span>
           </div>
-          <span class="px-2.5 py-0.5 rounded text-[11px] font-black tracking-wide ${ore.badgeClass}" title="${ore.name}: ${ore.description}">
+          <span class="card-ore-badge px-2.5 py-0.5 rounded text-[11px] font-black tracking-wide ${ore.badgeClass}" title="${ore.name}: ${ore.description}">
             ${ore.code}
           </span>
         </div>
@@ -742,7 +893,7 @@ class NickelDomeCalculator {
           const id = e.target.dataset.id;
           const item = this.samples.find(s => s.id === id);
           if (item) {
-            item.name = e.target.value.trim() || 'Tanpa Nama';
+            item.name = e.target.value.trim();
             this.saveToLocalStorage();
             this.updateChart();
             this.updatePrintMeta();
@@ -756,9 +907,9 @@ class NickelDomeCalculator {
           const id = e.target.dataset.id;
           const item = this.samples.find(s => s.id === id);
           if (item) {
-            const val = parseFloat(e.target.value);
-            item.buckets = isNaN(val) || val < 0 ? 0 : val;
-            this.render();
+            item.buckets = e.target.value;
+            item.bucket = e.target.value;
+            this.updateLiveCalculations(id, null, item.rawGrade);
           }
         });
       });
@@ -770,7 +921,9 @@ class NickelDomeCalculator {
           const item = this.samples.find(s => s.id === id);
           if (item && item.buckets > 0) {
             item.buckets = Math.max(0, item.buckets - 1);
-            this.render();
+            const bktInputs = document.querySelectorAll(`.sample-buckets-input[data-id="${id}"]`);
+            bktInputs.forEach(b => b.value = item.buckets);
+            this.updateLiveCalculations(id, null, item.rawGrade);
           }
         });
       });
@@ -782,20 +935,24 @@ class NickelDomeCalculator {
           const item = this.samples.find(s => s.id === id);
           if (item) {
             item.buckets = (item.buckets || 0) + 1;
-            this.render();
+            const bktInputs = document.querySelectorAll(`.sample-buckets-input[data-id="${id}"]`);
+            bktInputs.forEach(b => b.value = item.buckets);
+            this.updateLiveCalculations(id, null, item.rawGrade);
           }
         });
       });
 
-      // Grade Ni
+      // Grade Ni - blur normalization (removes trailing dot if user leaves input like "1.")
       root.querySelectorAll('.sample-grade-input').forEach(input => {
-        input.addEventListener('input', (e) => {
+        input.addEventListener('blur', (e) => {
           const id = e.target.dataset.id;
           const item = this.samples.find(s => s.id === id);
-          if (item) {
-            const val = parseFloat(e.target.value);
-            item.gradeNi = isNaN(val) || val < 0 ? 0 : val;
-            this.render();
+          if (item && item.rawGrade) {
+            if (item.rawGrade.endsWith('.')) {
+              item.rawGrade = item.rawGrade.slice(0, -1);
+              e.target.value = item.rawGrade;
+              this.updateSampleGrade(id, item.gradeNi, item.rawGrade, e.target);
+            }
           }
         });
       });
@@ -824,13 +981,16 @@ class NickelDomeCalculator {
     const nextNum = this.samples.length + 1;
     const newSample = {
       id: Date.now().toString(),
-      name: `Sampel ${nextNum}`,
-      buckets: 2,
-      gradeNi: 1.30
+      name: "",        // Kosong murni, jangan default "Sampel 1", "Sampel 2", dsb.
+      bucket: "",      // String kosong atau null (jangan default 2)
+      buckets: "",
+      grade: "",       // String kosong atau null (jangan default 0 atau 1.30)
+      gradeNi: "",
+      rawGrade: ""
     };
     this.samples.push(newSample);
     this.render();
-    this.showToast(`Sampel #${nextNum} berhasil ditambahkan.`, 'success');
+    this.showToast(`Baris sampel #${nextNum} baru (kosong) berhasil ditambahkan.`, 'success');
   }
 
   duplicateSample(id) {
@@ -841,7 +1001,8 @@ class NickelDomeCalculator {
       id: Date.now().toString(),
       name: `${original.name} (Copy)`,
       buckets: original.buckets,
-      gradeNi: original.gradeNi
+      gradeNi: original.gradeNi,
+      rawGrade: original.rawGrade !== undefined ? original.rawGrade : original.gradeNi.toString()
     };
     this.samples.push(duplicated);
     this.render();
@@ -858,7 +1019,7 @@ class NickelDomeCalculator {
   }
 
   loadExampleData() {
-    this.samples = JSON.parse(JSON.stringify(DEFAULT_SAMPLES));
+    this.samples = JSON.parse(JSON.stringify(EXAMPLE_SAMPLES));
     this.config.cog = 1.20;
     this.config.bucketCapacity = 2.2;
     this.config.fillFactor = 1.10;
@@ -1155,7 +1316,13 @@ class NickelDomeCalculator {
     try {
       const payload = {
         config: this.config,
-        samples: this.samples.map(s => ({ id: s.id, name: s.name, buckets: s.buckets, gradeNi: s.gradeNi }))
+        samples: this.samples.map(s => ({
+          id: s.id,
+          name: s.name,
+          buckets: s.buckets,
+          gradeNi: s.gradeNi,
+          rawGrade: s.rawGrade
+        }))
       };
       localStorage.setItem('nickel_dome_calc_state', JSON.stringify(payload));
     } catch (e) {
@@ -1174,7 +1341,8 @@ class NickelDomeCalculator {
             id: s.id || Date.now().toString(),
             name: s.name || 'Sampel',
             buckets: s.buckets || 0,
-            gradeNi: s.gradeNi || 0
+            gradeNi: s.gradeNi || 0,
+            rawGrade: s.rawGrade !== undefined ? s.rawGrade : (s.gradeNi !== undefined ? s.gradeNi.toString() : '')
           }));
         }
       }

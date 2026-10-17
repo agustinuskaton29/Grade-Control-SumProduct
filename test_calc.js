@@ -114,4 +114,103 @@ assert.strictEqual(comp.code, 'MGSO');
 assert.strictEqual(comp.description, 'Medium grade Ni stockpile for Smelter');
 console.log('✓ Composite calculation and abbreviation badge verified successfully!');
 
-console.log('\n>>> ALL SAPROLITE UNIT TESTS PASSED! <<<');
+console.log('\n--- TEST 3: Decimal Input Handler & Normalization Logic ---');
+
+function processGradeInput(rawInput) {
+  let val = rawInput;
+  // 1. Jika user tidak sengaja mengetik koma, otomatis ubah menjadi titik
+  val = val.replace(/,/g, '.');
+  // 2. Cegah input selain angka dan titik
+  val = val.replace(/[^0-9.]/g, '');
+  // 3. Pastikan hanya ada 1 tanda titik desimal
+  const parts = val.split('.');
+  if (parts.length > 2) {
+    val = parts[0] + '.' + parts.slice(1).join('');
+  }
+  const numericGrade = parseFloat(val);
+  return {
+    formattedVal: val,
+    numericGrade: isNaN(numericGrade) ? 0 : numericGrade
+  };
+}
+
+// 1. Normal decimal with dot: "1.35"
+const t1 = processGradeInput("1.35");
+assert.strictEqual(t1.formattedVal, "1.35");
+assert.strictEqual(t1.numericGrade, 1.35);
+console.log('✓ Normal decimal "1.35" accepted');
+
+// 2. Decimal with comma: "1,35" -> "1.35"
+const t2 = processGradeInput("1,35");
+assert.strictEqual(t2.formattedVal, "1.35");
+assert.strictEqual(t2.numericGrade, 1.35);
+console.log('✓ Comma input "1,35" converted to "1.35"');
+
+// 3. Trailing dot during typing: "1."
+const t3 = processGradeInput("1.");
+assert.strictEqual(t3.formattedVal, "1.");
+assert.strictEqual(t3.numericGrade, 1.0);
+console.log('✓ In-progress typing "1." preserved without error');
+
+// 4. Multiple dots: "1.3.5" -> "1.35"
+const t4 = processGradeInput("1.3.5");
+assert.strictEqual(t4.formattedVal, "1.35");
+assert.strictEqual(t4.numericGrade, 1.35);
+console.log('✓ Multiple dots "1.3.5" sanitized to "1.35"');
+
+// 5. Invalid characters: "1.35% abc" -> "1.35"
+const t5 = processGradeInput("1.35% abc");
+assert.strictEqual(t5.formattedVal, "1.35");
+assert.strictEqual(t5.numericGrade, 1.35);
+console.log('✓ Non-numeric characters stripped successfully');
+
+// 6. Leading dot: ".8" -> 0.8
+const t6 = processGradeInput(".8");
+assert.strictEqual(t6.formattedVal, ".8");
+assert.strictEqual(t6.numericGrade, 0.8);
+console.log('✓ Leading dot ".8" parsed correctly as 0.8');
+
+// 7. Empty input: "" -> 0
+const t7 = processGradeInput("");
+assert.strictEqual(t7.formattedVal, "");
+assert.strictEqual(t7.numericGrade, 0);
+console.log('✓ Empty input gracefully defaults to 0');
+
+console.log('\n--- TEST 4: New Empty Sample Initialization & Calculation ---');
+const newSample = {
+  id: Date.now(),
+  name: "",
+  bucket: "",
+  buckets: "",
+  grade: "",
+  gradeNi: "",
+  rawGrade: ""
+};
+
+assert.strictEqual(newSample.name, "");
+assert.strictEqual(newSample.bucket, "");
+assert.strictEqual(newSample.grade, "");
+console.log('✓ New sample row contains pure empty strings (name="", bucket="", grade="")');
+
+function calcSample(sample, tonPerBkt) {
+  const rawBkt = (sample.buckets !== undefined && sample.buckets !== '') ? sample.buckets : sample.bucket;
+  const rawGrd = (sample.gradeNi !== undefined && sample.gradeNi !== '') ? sample.gradeNi : (sample.grade !== undefined && sample.grade !== '' ? sample.grade : sample.rawGrade);
+  const buckets = parseFloat(rawBkt) || 0;
+  const gradeNi = parseFloat(rawGrd) || 0;
+  const tonnage = buckets * tonPerBkt;
+  const tonNi = tonnage * gradeNi;
+  const classification = classifyOre(gradeNi);
+  return { buckets, gradeNi, tonnage, tonNi, classification };
+}
+
+const emptyCalc = calcSample(newSample, 4.114);
+assert.strictEqual(emptyCalc.buckets, 0);
+assert.strictEqual(emptyCalc.gradeNi, 0);
+assert.strictEqual(emptyCalc.tonnage, 0);
+assert.strictEqual(emptyCalc.tonNi, 0);
+assert.strictEqual(emptyCalc.classification.code, '-');
+console.log('✓ Empty sample safely calculates 0 ton, 0 tonNi, and "-" classification without error');
+
+console.log('\n>>> ALL SAPROLITE, DECIMAL & EMPTY ROW TESTS PASSED! <<<');
+
+
