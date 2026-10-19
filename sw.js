@@ -1,10 +1,10 @@
-const CACHE_NAME = 'gcsp-app-cache-v3';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'gcsp-v2';
+const ASSETS = [
   './',
   './index.html',
+  './manifest.json',
   './style.css',
   './app.js',
-  './manifest.json',
   './icon-192.png',
   './icon-512.png'
 ];
@@ -14,7 +14,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[GCSP SW] Caching app shell assets');
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll(ASSETS);
     }).then(() => self.skipWaiting())
   );
 });
